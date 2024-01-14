@@ -1,35 +1,50 @@
 #!/usr/bin/python3
 """
-Fabric script that distributes an archive to web servers
+Deploy web_static to web servers
 """
-
-from fabric.api import env, run, put
+from fabric.api import *
 from os.path import exists
+from datetime import datetime
 
-env.hosts = ['ubuntu@3.90.85.41', 'ubuntu@54.174.187.4']
-env.key_filename = ['my_ssh_private_key']
-
+env.hosts = ["100.25.45.251", "3.90.84.44"]
+env.user = 'ubuntu'
+env.key_filename = '~/.ssh/id_rsa'
 
 def do_deploy(archive_path):
-    """
-    Distributes an archive to web servers
-    """
+    """Deploys the archive to web servers."""
     if not exists(archive_path):
         return False
 
     try:
+        file_name = archive_path.split("/")[-1]
+        no_ext = file_name.split(".")[0]
+        path = "/data/web_static/releases/{}".format(no_ext)
+
+        # Upload the archive
         put(archive_path, '/tmp/')
-        archive_filename = archive_path.split("/")[-1]
-        release_path = "/data/web_static/releases/{}".format(
-            archive_filename.split(".")[0])
-        run("mkdir -p {}".format(release_path))
-        run("tar -xzf /tmp/{} -C {}".format(archive_filename, release_path))
-        run("rm /tmp/{}".format(archive_filename))
-        run("mv {}/web_static/* {}".format(release_path, release_path))
-        run("rm -rf {}/web_static".format(release_path))
-        run("rm -rf /data/web_static/current")
-        run("ln -s {} /data/web_static/current".format(release_path))
+
+        # Create directory for unzipping
+        run('sudo mkdir -p {}'.format(path))
+
+        # Unzip the archive
+        run('sudo tar -xzvf /tmp/{} -C {}'.format(file_name, path))
+
+        # Delete the archive from the server
+        run('sudo rm /tmp/{}'.format(file_name))
+
+        # Move contents to the parent directory
+        run('sudo mv {}/web_static/* {}'.format(path, path))
+
+        # Remove the redundant directory
+        run('sudo rm -rf {}/web_static'.format(path))
+
+        # Delete current symbolic link
+        run('sudo rm -rf /data/web_static/current')
+
+        # Create new symbolic link
+        run('sudo ln -s {}/ /data/web_static/current'.format(path))
+
         print("New version deployed!")
         return True
-    except Exception as e:
+    except:
         return False
