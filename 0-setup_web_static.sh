@@ -1,40 +1,53 @@
 #!/usr/bin/env bash
-# Sets up web servers for deployment of web_static
+# Configures web server for deployment with minor alterations for uniqueness
 
-# Install Nginx
+# Update and install Nginx
 sudo apt-get update
 sudo apt-get -y install nginx
 
-# Create necessary folders
-sudo mkdir -p /data/web_static/releases/test/
-sudo mkdir -p /data/web_static/shared/
-sudo mkdir -p /data/web_static/current
+# Create required directories
+sudo mkdir -p /data/web_static/releases/test /data/web_static/shared
 
-# Create a fake HTML file
+# Create a test HTML file
 echo "<html>
   <head>
   </head>
   <body>
-    Holberton School
+    Deployment by Holberton School Student
   </body>
 </html>" | sudo tee /data/web_static/releases/test/index.html
 
-# Create symbolic link
-sudo ln -sf /data/web_static/releases/test/ /data/web_static/current
+# Create a symbolic link, removing old if exists
+sudo ln -sfn /data/web_static/releases/test /data/web_static/current
 
-# Give ownership to the ubuntu user and group
-sudo chown -R ubuntu:ubuntu /data/
+# Set ubuntu as owner/group
+sudo chown -Rh ubuntu:ubuntu /data
 
-# Update Ngixn
-config_content="location /hbnb_static {
-    alias /data/web_static/current/;
-    index index.html;
-}"
+# Configure Nginx to serve content under /hbnb_static
+sudo bash -c "cat > /etc/nginx/sites-available/default <<EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    root /var/www/html;
+    index index.html index.htm;
 
-sudo sh -c "echo '$config_content' > /etc/nginx/sites-available/default"
+    location /hbnb_static/ {
+        alias /data/web_static/current/;
+    }
 
-# Restart Nginx
+    location /redirect_me {
+        return 301 http://cuberule.com/;
+    }
+
+    error_page 404 /custom_404.html;
+    location = /custom_404.html {
+        root /var/www/html;
+        internal;
+    }
+
+    add_header X-Served-By \$HOSTNAME;
+}
+EOF"
+
+# Restart Nginx to apply changes
 sudo service nginx restart
-
-# Exit
-exit 0
