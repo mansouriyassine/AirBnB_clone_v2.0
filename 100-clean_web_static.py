@@ -1,34 +1,41 @@
 #!/usr/bin/python3
-"""
-Fabric script that deletes out-of-date archives
-"""
+# Fabfile to delete out-of-date archives.
 
-from fabric.api import local, env, run
-from datetime import datetime
-from os.path import exists
+# Import necessary libraries and modules
+import os
+from fabric.api import env, run, local
 
-env.hosts = ['ubuntu@3.90.85.41', 'ubuntu@54.174.187.4']
-env.key_filename = ['my_ssh_private_key']
+# Define the list of server IPs
+env.hosts = ["3.90.85.41", "54.174.187.4"]
 
 
+# Function to delete out-of-date archives
 def do_clean(number=0):
+    """Delete out-of-date archives.
+
+    Args:
+        number (int): The number of archives to keep.
+
+    If number is 0 or 1, keeps only the most recent archive. If
+    number is 2, keeps the most and second-most recent archives,
+    etc.
     """
-    Deletes out-of-date archives
-    """
-    number = int(number)
-    if number < 0:
-        return
-    try:
-        # Local clean
-        local("cd versions; ls -1t | tail -n +{} | xargs -I {{}} rm {{}}".format(number + 1))
+    number = 1 if int(number) == 0 else int(number)
 
-        # Remote clean
-        archives = run("ls -1t /data/web_static/releases/").split('\n')
-        archives = archives[:-1] if archives[-1] == '' else archives
+    # Delete unnecessary archives in the local 'versions' folder
+    archives = sorted(os.listdir("versions"))
+    [archives.pop() for i in range(number)]
+    with lcd("versions"):
+        [local("rm ./{}".format(a)) for a in archives]
 
-        for archive in archives[number:]:
-            path = "/data/web_static/releases/{}".format(archive)
-            run("rm -rf {}".format(path))
+    # Delete unnecessary archives
+    with cd("/data/web_static/releases"):
+        archives = run("ls -tr").split()
+        archives = [a for a in archives if "web_static_" in a]
+        [archives.pop() for i in range(number)]
+        [run("rm -rf ./{}".format(a)) for a in archives]
 
-    except Exception:
-        return None
+
+# Ensure this script is run only when directly executed
+if __name__ == "__main__":
+    do_clean()
