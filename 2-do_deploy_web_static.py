@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 """
-Fabric script method do_deploy: deploys archive to webservers
+Fabric script methods
 """
+
 from fabric.api import env, put, run
 import os.path
 
-# Define the remote servers with the provided IP addresses
+# Define the list of server IP addresses
 env.hosts = ['3.90.85.41', '54.174.187.4']
+
 
 def do_deploy(archive_path):
     """
@@ -28,5 +30,5 @@ def do_deploy(archive_path):
         run("rm -rf {}".format(symlink))
         run("ln -s {} {}".format(path_no_ext, symlink))
         return True
-    except:
+    except Exception as e:
         return False
