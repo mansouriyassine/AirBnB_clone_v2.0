@@ -1,50 +1,46 @@
 #!/usr/bin/python3
-"""
-Deploy web_static to web servers
+"""Deploy archive to web servers
 """
 from fabric.api import *
-from os.path import exists
 from datetime import datetime
+import os
 
-env.hosts = ["100.25.45.251", "3.90.84.44"]
+env.hosts = ['3.90.85.41', '54.174.187.4']
 env.user = 'ubuntu'
 env.key_filename = '~/.ssh/id_rsa'
 
+
 def do_deploy(archive_path):
-    """Deploys the archive to web servers."""
-    if not exists(archive_path):
+    """Deploy the archive to web servers
+    """
+    if not os.path.exists(archive_path):
         return False
 
     try:
-        file_name = archive_path.split("/")[-1]
-        no_ext = file_name.split(".")[0]
-        path = "/data/web_static/releases/{}".format(no_ext)
-
-        # Upload the archive
+        # Upload the archive to the /tmp/ directory on the server
         put(archive_path, '/tmp/')
 
-        # Create directory for unzipping
-        run('sudo mkdir -p {}'.format(path))
+        # Extract the archive to the web_static/releases/ directory
+        archive_filename = os.path.basename(archive_path)
+        archive_name = archive_filename.split('.')[0]
+        remote_path = '/data/web_static/releases/{}'.format(archive_name)
+        run('mkdir -p {}'.format(remote_path))
+        run('tar -xzf /tmp/{} -C {}'.format(archive_filename, remote_path))
 
-        # Unzip the archive
-        run('sudo tar -xzvf /tmp/{} -C {}'.format(file_name, path))
+        # Remove the uploaded archive file
+        run('rm /tmp/{}'.format(archive_filename))
 
-        # Delete the archive from the server
-        run('sudo rm /tmp/{}'.format(file_name))
+        # Move the contents to the web_static/releases/ directory
+        run('mv {}/web_static/* {}'.format(remote_path, remote_path))
 
-        # Move contents to the parent directory
-        run('sudo mv {}/web_static/* {}'.format(path, path))
+        # Remove the empty web_static directory
+        run('rm -rf {}/web_static'.format(remote_path))
 
-        # Remove the redundant directory
-        run('sudo rm -rf {}/web_static'.format(path))
+        # Update the symbolic link
+        run('rm -rf /data/web_static/current')
+        run('ln -s {} /data/web_static/current'.format(remote_path))
 
-        # Delete current symbolic link
-        run('sudo rm -rf /data/web_static/current')
-
-        # Create new symbolic link
-        run('sudo ln -s {}/ /data/web_static/current'.format(path))
-
-        print("New version deployed!")
         return True
-    except:
+
+    except Exception as e:
         return False
