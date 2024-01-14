@@ -1,41 +1,47 @@
 #!/usr/bin/python3
-# Fabfile to delete out-of-date archives.
+"""
+Fabric script that deletes out-of-date archives.
+"""
 
-# Import necessary libraries and modules
-import os
 from fabric.api import env, run, local
+from os import path
 
-# Define the list of server IPs
-env.hosts = ["3.90.85.41", "54.174.187.4"]
+# Define the remote servers
+env.hosts = ["441617-web-01", "441617-web-02"]
+env.user = 'ubuntu'
+env.key_filename = '~/.ssh/id_rsa'
 
 
-# Function to delete out-of-date archives
 def do_clean(number=0):
-    """Delete out-of-date archives.
+    """
+    Delete out-of-date archives.
 
     Args:
         number (int): The number of archives to keep.
-
-    If number is 0 or 1, keeps only the most recent archive. If
-    number is 2, keeps the most and second-most recent archives,
-    etc.
     """
-    number = 1 if int(number) == 0 else int(number)
+    try:
+        number = int(number)
+        if number < 1:
+            number = 1
 
-    # Delete unnecessary archives in the local 'versions' folder
-    archives = sorted(os.listdir("versions"))
-    [archives.pop() for i in range(number)]
-    with lcd("versions"):
-        [local("rm ./{}".format(a)) for a in archives]
+        # Local cleanup
+        local("mkdir -p versions")
+        local_archives = local("ls -1t versions", capture=True).split('\n')
+        to_delete_local = local_archives[number:]
+        for archive in to_delete_local:
+            local("rm -f versions/{}".format(archive))
 
-    # Delete unnecessary archives
-    with cd("/data/web_static/releases"):
-        archives = run("ls -tr").split()
-        archives = [a for a in archives if "web_static_" in a]
-        [archives.pop() for i in range(number)]
-        [run("rm -rf ./{}".format(a)) for a in archives]
+        # Remote cleanup
+        remote_archives_path = "/data/web_static/releases/"
+        releases = run("ls -1t {}".format(remote_archives_path)).split('\n')
+        to_delete_remote = releases[number:]
+        for release in to_delete_remote:
+            if path.join(remote_archives_path, release) != \
+               path.join(remote_archives_path, "test"):
+                run("rm -rf {}".format(
+                    path.join(remote_archives_path, release)
+                ))
 
-
-# Ensure this script is run only when directly executed
-if __name__ == "__main__":
-    do_clean()
+        return True
+    except Exception as e:
+        return False
